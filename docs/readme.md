@@ -4,6 +4,8 @@
 
 Timecycle is a kiosk loader and comes with a clock slideshow (hence the name). It fetches the slideshow list from a JSON file, load the images and show them. That's it.
 
+![Screenshot](screenshot.jpg)
+
 Mount a old monitor on the wall (IPS or better adviced for good viewing angles), put a Raspberry PI or another tiny linux or Windows PC behind it, run a browser in some form of kiosk mode, point it to Timecycle. And you have a amazing digital wall clock.
 
 * Responsive Design: Adjusts to different screen sizes using viewport units for a consistent display.
