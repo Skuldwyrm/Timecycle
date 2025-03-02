@@ -31,7 +31,7 @@ The index.html is a wrapper for clock.html which holds the clock and slideshow. 
 
 If the clock.html is edited or changed then the kiosk index.html file should be "touched" this will trigger the refresh and everything is reloaded. Why not have a single file with the refresh in it? Because the clock and slideshow code could break, in which case you would need to manually trigger a reload on your kiosk PC, which could be inconvenient if you have it tucked behind a screen with no mouse or keyboard and don't want to remote into it etc. It's just so more convenient to re-save the index.html so the filedate timestamp is updated. And if you have multiple of these around the place, they will all "auto update".
 
-Any normal imnage should work, so .png .jpg. .webp .svg and whatever future standard formats browsers will support.
+Any normal imnage should work, so .png .jpg .webp .svg and whatever future standard formats browsers will support.
 
 ## Installation
 
@@ -65,4 +65,4 @@ And as seen in index.html, to use the Timecycle kiosk "loader".
 Timecycle is licensed under [MIT](license.md).
 
 ## Copyrights
-Digital-7 font ©️ 2008 Sizenko Alexander, sadly his website seems to no longer exist but you can find the font on many font websites, he is a programmer at Style-7 in Ukraine. I'm using the Monospace version and if I recall correctly I had to fix it because of some alignment issues, I also converted it to woff2 in the process. There are more variants of this as well other similar cool ones made by that font designer. I like Digital-7 as it has that Style-7 very retro LCD clock look, the font is also very tiny in filesize as it basically has just A-Z and 0-9 characters.
+Digital-7 font ©2008 Sizenko Alexander, sadly his website seems to no longer exist but you can find the font on many font websites, he is a programmer at Style-7 in Ukraine. I'm using the Monospace version and if I recall correctly I had to fix it because of some alignment issues, I also converted it to woff2 in the process. There are more variants of this as well other similar cool ones made by that font designer. I like Digital-7 as it has that Style-7 very retro LCD clock look, the font is also very tiny in filesize as it basically has just A-Z and 0-9 characters.
