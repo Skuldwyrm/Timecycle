@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="icon.png">
+    <title>Timecycle</title>
+    <style>
+        html {
+            background-color: #000;
+            color: #fff;
+        }
+        #content {
+            position: absolute;
+            top: 0px;
+            right: 0px;
+            bottom: 0px;
+            left: 0px;
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+    </style>
+    <script>
+        class Timecycle {
+            constructor(refreshInterval) {
+                this.refreshInterval = ((refreshInterval >= 1) && (refreshInterval <= 1440)) ? (refreshInterval * 60 * 1000) : (15 * 60 * 1000);
+                this.lastModified = null;
+
+                // A little annoying to add these, but with this we avoid arrow functions and temporary functions and messy bindings later
+                this.init = this.init.bind(this);
+                this.updateSelf = this.updateSelf.bind(this);
+                this.updateSelf_Response = this.updateSelf_Response.bind(this);
+                this.updateSelf_Error = this.updateSelf_Error.bind(this);
+
+                // Initialize when DOM is ready
+                document.addEventListener('DOMContentLoaded', this.init);
+            }
+
+            // Let's you use "Timecycle.start(15);" instead of "new Timecycle(15);" for those that prefer that.
+            static start(param1) {
+                return new this(param1);
+            }
+
+            init() {
+                setInterval(this.updateSelf, this.refreshInterval);
+            }
+
+            updateSelf() {
+                // Get the last modified date of the document
+                let modified = new Date(document.lastModified);
+                if (!isNaN(modified)) {
+                    this.lastModified = modified;
+                } else {
+                    console.error('Invalid document lastmodified date');
+                }
+
+                fetch(location.href, { method: 'HEAD' })
+                .then(this.updateSelf_Response)
+                .catch(this.updateSelf_Error);
+            }
+
+            updateSelf_Response(response) {
+                if (!response.ok) {
+                    return Promise.reject(`HTTP error! status: ${response.status}`);
+                }
+
+                const headers = response.headers;
+                const lastModified = headers.get('Last-Modified');
+
+                // Check if 'Last-Modified' header exists
+                if (lastModified) {
+                    const updateTime = new Date(lastModified);
+
+                    if (this.lastModified && updateTime > this.lastModified) {
+                        // The page has been updated on the server, reload the page
+                        location.reload();
+                    } else {
+                        // Store the update time for the next check
+                        this.lastModified = updateTime;
+                    }
+                } else {
+                    console.error('No Last-Modified header found');
+                }
+            }
+
+            updateSelf_Error(response) {
+                console.error('There was a problem with the fetch operation: ' + error.message);
+            }
+        }
+
+        Timecycle.start(15);  // Refresh interval (15 minutes)
+    </script>
+</head>
+<body>
+    <iframe id="content" src="clock.html"></iframe>
+</body>
+</html>

@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="icon.png">
+    <title>Timecycle Slideshow Clock</title>
+    <style>
+        @font-face {
+            font-family: 'Digital-7 Mono';
+            src: local('Digital-7 Mono') format('woff2'), url('digital7.woff2') format('woff2');
+        }
+
+        html {
+            background-color: #000;
+            color: #fff;
+            font-family: Arial, sans-serif;
+        }
+        body {
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+        }
+        body, html {
+            height: 100%;
+            width: 100%;
+        }
+
+        #slides {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+
+        .slide {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-size: cover;
+            background-position: center;
+            opacity: 0;
+            transition: opacity 5s ease-in-out; /* Default crossfade duration */
+            box-sizing: border-box;
+            box-shadow: inset 0 0 1vw 0.5vw black;
+        }
+
+        .slide.show {
+            opacity: 1;
+        }
+
+        #error-message {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background-color: rgba(255, 0, 0, 0.8); /* Red background */
+            padding: 10px;
+            border-radius: 5px;
+            display: none; /* Hidden by default */
+            z-index: 100; /* Ensure it's on top */
+        }
+
+        #placeholder {
+            display: flex; /* Shown by default */
+            width: 100%;
+            height: 100%;
+            position: absolute; /* Ensure it covers the container */
+            top: 0;
+            left: 0;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column; /* Ensure vertical alignment */
+            text-align: center; /* Center text */
+            font-size: 24px;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        #placeholder .emoji {
+            font-size: 100px; /* Adjust size of the emoji */
+        }
+
+        #clock {
+            font-family: 'Digital-7 Mono', monospace;
+            font-size: 18vw;
+            background-color: #000;
+            color: hsla(32, 100%, 75%, 0.75);
+            text-align: center;
+        }
+
+        #date {
+            font-family: 'Digital-7 Mono','Duralith', sans-serif;
+            font-size: 7vw;
+            background-color: #000;
+            color: hsla(32, 100%, 75%, 0.75);
+            text-align: center;
+        }
+
+        #hidemouse {
+            position: absolute;
+            left: 0px;
+            top: 0px;
+            right: 0px;
+            bottom: 0px;
+            z-index: 1000;
+            cursor: none;
+        }
+    </style>
+    <script>
+        class Timecycle_Slideshow {
+            constructor(config) {
+                this.debug = false;
+                this.urlimagesjson = 'images.json';
+                this.config = config;
+                this.imageUrls = [];
+                this.slides = [];
+                this.currentSlide = 0;
+                this.nextSlideTime = null;
+                this.placeholderHidden = false;
+                this.lastmodified = null;
+
+                // Configuration with defaults
+                this.config = config;
+                this.config.slideDuration = ((config.slideDuration >= 1) && (config.slideDuration <= 1440)) ? (config.slideDuration * 60 * 1000) : (1 * 60 * 1000); // 1 minute by default
+                this.config.refetchInterval = ((config.refetchInterval >= 1) && (config.refetchInterval <= 1440)) ? (config.refetchInterval * 60 * 1000) : (15 * 60 * 1000); // 15 minutes by default
+                this.config.refreshInterval = ((config.refreshInterval >= 1) && (config.refreshInterval <= 1440)) ? (config.refreshInterval * 60 * 1000) : (60 * 60 * 1000); // 60 minutes by default
+
+                // Initialize the slideshow when DOM is ready
+                document.addEventListener('DOMContentLoaded', this.init.bind(this));
+            }
+
+            init() {
+                this.slideContainer = document.getElementById(this.config.slideContainerId);
+
+                this.errorMessageContainer = this.createErrorMessageContainer();
+                this.placeholderContainer = this.createPlaceholderContainer();
+
+                // Verify that the elements are found
+                if (!this.slideContainer) {
+                    throw new Error(`Element with ID '${this.config.slideContainerId}' not found.`);
+                }
+                if (!this.errorMessageContainer) {
+                    throw new Error(`Element with ID '${this.config.errorMessageContainerId}' not found.`);
+                }
+                if (!this.placeholderContainer) {
+                    throw new Error(`Element with ID '${this.config.placeholderContainerId}' not found.`);
+                }
+
+                this.createSlides();
+                this.fetchImages();
+                this.startSlideshow();
+                setInterval(this.fetchImages.bind(this), this.config.refetchInterval); // Fetch new images at specified interval
+            }
+
+            createErrorMessageContainer() {
+                let errorMessageContainer = document.getElementById('timecycleslideshow_error');
+                if (!errorMessageContainer) {
+                    errorMessageContainer = document.createElement('div');
+                    errorMessageContainer.id = 'timecycleslideshow_error';
+                    errorMessageContainer.style.position = 'absolute';
+                    errorMessageContainer.style.top = '10px';
+                    errorMessageContainer.style.left = '10px';
+                    errorMessageContainer.style.backgroundColor = 'rgba(255, 0, 0, 0.8)';
+                    errorMessageContainer.style.padding = '10px';
+                    errorMessageContainer.style.borderRadius = '5px';
+                    errorMessageContainer.style.display = 'none';
+                    errorMessageContainer.style.zIndex = '1000';
+                    document.body.appendChild(errorMessageContainer);
+                }
+                return errorMessageContainer;
+            }
+
+            createPlaceholderContainer() {
+                let placeholderContainer = document.getElementById('timecycleslideshow_placeholder');
+                if (!placeholderContainer) {
+                    placeholderContainer = document.createElement('div');
+                    placeholderContainer.id = 'timecycleslideshow_placeholder';
+                    placeholderContainer.style.display = 'flex';
+                    placeholderContainer.style.width = '100%';
+                    placeholderContainer.style.height = '100%';
+                    placeholderContainer.style.position = 'absolute';
+                    placeholderContainer.style.top = '0';
+                    placeholderContainer.style.left = '0';
+                    placeholderContainer.style.justifyContent = 'center';
+                    placeholderContainer.style.alignItems = 'center';
+                    placeholderContainer.style.flexDirection = 'column';
+                    placeholderContainer.style.textAlign = 'center';
+                    placeholderContainer.style.fontSize = '24px';
+                    placeholderContainer.style.color = 'rgba(255, 255, 255, 0.8)';
+                    
+                    const emoji = document.createElement('span');
+                    emoji.className = 'emoji';
+                    emoji.textContent = '😒';
+                    emoji.style.fontSize = '100px';
+                    
+                    const text = document.createElement('p');
+                    text.textContent = 'Loading...';
+                    
+                    placeholderContainer.appendChild(emoji);
+                    placeholderContainer.appendChild(text);
+                    document.body.appendChild(placeholderContainer);
+                }
+                return placeholderContainer;
+            }
+
+            fetchImages() {
+                if (this.debug) console.log('Fetching image list...');
+                fetch(this.urlimagesjson)
+                    .then(this.fetchImages_Response.bind(this))
+                    .then(this.updateSlides.bind(this))
+                    .catch(this.fetchImages_Error.bind(this));
+            }
+
+            fetchImages_Response(response) {
+                return response.ok ? response.json() : Promise.reject('Network response was not ok');
+            }
+
+            fetchImages_Error(error) {
+                console.error('Failed to fetch images.json:', error);
+                this.showErrorMessage('Failed to fetch image list. Using current images.');
+            }
+
+            createSlides() {
+                this.slideContainer.innerHTML = '';
+
+                if (!Array.isArray(this.imageUrls)) {
+                    console.error('Invalid imageUrls:', this.imageUrls);
+                    this.imageUrls = [];
+                }
+
+                this.slides = this.imageUrls.map(this.createSlide.bind(this));
+                this.showPlaceholderIfNecessary();
+            }
+
+            createSlide(url) {
+                const slide = document.createElement('div');
+                slide.classList.add('slide');
+                slide.valid = false;
+                this.slides.push(slide);
+                this.slideContainer.appendChild(slide);
+
+                const img = new Image();
+                img.src = url;
+                img.onload = this.handleImageLoad.bind(this, slide, url);
+                img.onerror = this.handleImageError.bind(this, url);
+
+                return slide;
+            }
+
+            handleImageLoad(slide, url) {
+                slide.style.backgroundImage = `url(${url})`;
+                slide.valid = true;
+                if (this.getValidSlidesCount() === 1) {
+                    slide.classList.add('show');
+                    this.placeholderContainer.style.display = 'none';
+                    this.placeholderHidden = true;
+                }
+                if (this.debug) console.log(`Image loaded and background image set: ${url}`);
+            }
+
+            handleImageError(url) {
+                console.error(`Failed to load image: ${url}`);
+            }
+
+            showErrorMessage(message) {
+                this.errorMessageContainer.style.display = 'block';
+                this.errorMessageContainer.innerText = message;
+                setTimeout(this.hideErrorMessage.bind(this), 5000); // Hide error message after 5 seconds
+            }
+
+            hideErrorMessage() {
+                this.errorMessageContainer.style.display = 'none';
+            }
+
+            startSlideshow() {
+                requestAnimationFrame(this.updateSlide.bind(this));
+            }
+
+            updateSlide(timestamp) {
+                if (!this.nextSlideTime) {
+                    this.nextSlideTime = timestamp + this.config.slideDuration;
+                }
+
+                if (timestamp >= this.nextSlideTime) {
+                    this.showNextSlide();
+                    this.nextSlideTime = timestamp + this.config.slideDuration;
+                }
+
+                requestAnimationFrame(this.updateSlide.bind(this));
+            }
+
+            showNextSlide() {
+                const validSlides = this.getValidSlides();
+                if (validSlides.length > 0) {
+                    validSlides[this.currentSlide].classList.remove('show');
+                    this.currentSlide = (this.currentSlide + 1) % validSlides.length;
+                    if (this.debug) console.log(`Next slide index: ${this.currentSlide}, valid slide indexes: ${this.getValidSlideIndexes(validSlides)}`);
+                    validSlides[this.currentSlide].classList.add('show');
+                    if (this.debug) console.log(`Showing slide with valid index ${this.currentSlide}`);
+                }
+            }
+
+            updateSlides(response) {
+                const newImageUrls = response.imageUrls;
+                if (!Array.isArray(newImageUrls)) {
+                    console.error('Invalid newImageUrls:', newImageUrls);
+                    return;
+                }
+
+                const hasChanges = this.hasUrlChanges(newImageUrls);
+
+                if (hasChanges) {
+                    this.imageUrls = newImageUrls;
+                    this.currentSlide = 0;
+                    this.createSlides();
+                    if (this.debug) console.log('Image list updated');
+                } else {
+                    this.imageUrls = newImageUrls;
+                    this.slides.forEach(this.updateSlideElement.bind(this));
+                    if (this.debug) console.log('Image list not updated');
+                }
+            }
+
+            updateSlideElement(slide, index) {
+                slide.valid = false;
+                const img = new Image();
+                img.src = this.imageUrls[index];
+                img.onload = this.handleImageLoad.bind(this, slide, this.imageUrls[index]);
+                img.onerror = this.handleImageError.bind(this, this.imageUrls[index]);
+            }
+
+            showPlaceholderIfNecessary() {
+                if (this.getValidSlidesCount() === 0) {
+                    this.placeholderContainer.style.display = 'flex';
+                    this.placeholderHidden = false;
+                }
+            }
+
+            getValidSlides() {
+                return this.slides.filter(this.isValidSlide.bind(this));
+            }
+
+            getValidSlidesCount() {
+                return this.getValidSlides().length;
+            }
+
+            isValidSlide(slide) {
+                return slide.valid;
+            }
+
+            getValidSlideIndexes(validSlides) {
+                return validSlides.map(this.getSlideIndex.bind(this)).filter(this.isValidIndex);
+            }
+
+            getSlideIndex(slide, index) {
+                return slide.valid ? index : -1;
+            }
+
+            isValidIndex(index) {
+                return index !== -1;
+            }
+
+            hasUrlChanges(newImageUrls) {
+                return this.imageUrls.length !== newImageUrls.length ||
+                    this.imageUrls.some(this.isUrlChanged.bind(this, newImageUrls));
+            }
+
+            isUrlChanged(newImageUrls, url, index) {
+                return url !== newImageUrls[index];
+            }
+        }
+
+        window.addEventListener('load', init);
+
+        function clock() {
+            const now = new Date();
+            let hours = now.getHours();
+            let minutes = now.getMinutes();
+            let seconds = now.getSeconds();
+            hours = hours < 10 ? '0' + hours : hours;
+            minutes = minutes < 10 ? '0' + minutes : minutes;
+            seconds = seconds < 10 ? '0' + seconds : seconds;
+            const date = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+            document.getElementById('date').textContent = date;
+            const time = `${hours}:${minutes}:${seconds}`;
+            document.getElementById('clock').textContent = time;
+        }
+
+        function init() {
+            // Draw our initial clock, then run it in a interval of 1 second.
+            clock();
+            setInterval(clock, 1000);
+        }
+
+        new Timecycle_Slideshow({
+            slideContainerId: 'slides',
+            errorMessageContainerId: 'error-message',
+            placeholderContainerId: 'placeholder',
+            slideDuration: 1, // Customize slide duration (1 minute)
+            refetchInterval: 15 // Customize refetch interval (15 minutes)
+        });
+    </script>
+</head>
+<body>
+    <div id="clock"></div>
+    <div id="slides"></div>
+    <div id="date"></div>
+    <div id="hidemouse"></div>
+</body>
+</html>
